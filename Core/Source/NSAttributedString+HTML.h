@@ -23,7 +23,3 @@
 - (id)initWithHTMLString:(NSString *)data baseURL:(NSURL *)base documentAttributes:(NSDictionary **)dict;
 - (id)initWithHTMLString:(NSString *)data options:(NSDictionary *)options documentAttributes:(NSDictionary **)dict;
 @end
-
-@interface NSAttributedString (Creator)
-+ (NSAttributedString *)attributedStringWithHTML:(id)data options:(NSDictionary *)options;
-@end

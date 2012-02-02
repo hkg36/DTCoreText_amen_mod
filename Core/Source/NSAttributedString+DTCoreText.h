@@ -9,7 +9,7 @@
 @interface NSAttributedString (DTCoreText)
 
 // convenience methods
-+ (NSAttributedString *)attributedStringWithHTML:(NSData *)data options:(NSDictionary *)options;
++ (NSAttributedString *)attributedStringWithHTML:(id)data options:(NSDictionary *)options;
 
 // attachment handling
 - (NSArray *)textAttachmentsWithPredicate:(NSPredicate *)predicate;

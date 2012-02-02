@@ -125,16 +125,3 @@
 	return [stringBuilder generatedAttributedString];
 }
 @end
-
-@implementation NSAttributedString (Creator)
-+ (NSAttributedString *)attributedStringWithHTML:(id)data options:(NSDictionary *)options
-{
-	NSAttributedString *attrString =nil;
-	if([data isKindOfClass:[NSData class]])
-		attrString = [[NSAttributedString alloc] initWithHTML:data options:options documentAttributes:NULL];
-	else if([data isKindOfClass:[NSString class]])
-		attrString = [[NSAttributedString alloc] initWithHTMLString:data options:options documentAttributes:NULL];
-	return attrString;
-}
-
-@end
