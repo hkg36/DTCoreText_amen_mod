@@ -80,3 +80,61 @@
 }
 
 @end
+
+@implementation NSAttributedString (HTMLString)
+- (id)initWithHTMLString:(NSString *)data documentAttributes:(NSDictionary **)dict
+{
+	return [self initWithHTMLString:data options:nil documentAttributes:dict];
+}
+- (id)initWithHTMLString:(NSString *)data baseURL:(NSURL *)base documentAttributes:(NSDictionary **)dict
+{
+	NSDictionary *optionsDict = nil;
+	
+	if (base)
+	{
+		optionsDict = [NSDictionary dictionaryWithObject:base forKey:NSBaseURLDocumentOption];
+	}
+	
+	return [self initWithHTMLString:data options:optionsDict documentAttributes:dict];
+}
+- (id)initWithHTMLString:(NSString *)data options:(NSDictionary *)options documentAttributes:(NSDictionary **)dict
+{
+	// only with valid data
+	if (![data length])
+	{
+		return nil;
+	}
+	
+	NSData *coredata=[data dataUsingEncoding:NSUTF8StringEncoding];
+	
+	DTHTMLAttributedStringBuilder	*stringBuilder = [[DTHTMLAttributedStringBuilder alloc] initWithHTML:coredata options:options documentAttributes:dict];
+	
+	// example for setting a willFlushCallback, that gets called before elements are written to the generated attributed string
+	
+	[stringBuilder setWillFlushCallback:^(DTHTMLElement *element) 
+	 {
+		 // if an element is larger than twice the font size put it in it's own block
+		 if (element.displayStyle == DTHTMLElementDisplayStyleInline && element.textAttachment.displaySize.height > 2.0 * element.fontDescriptor.pointSize)
+		 {
+			 element.displayStyle = DTHTMLElementDisplayStyleBlock;
+		 }
+	 } ];
+	
+	[stringBuilder buildString];
+	
+	return [stringBuilder generatedAttributedString];
+}
+@end
+
+@implementation NSAttributedString (Creator)
++ (NSAttributedString *)attributedStringWithHTML:(id)data options:(NSDictionary *)options
+{
+	NSAttributedString *attrString =nil;
+	if([data isKindOfClass:[NSData class]])
+		attrString = [[NSAttributedString alloc] initWithHTML:data options:options documentAttributes:NULL];
+	else if([data isKindOfClass:[NSString class]])
+		attrString = [[NSAttributedString alloc] initWithHTMLString:data options:options documentAttributes:NULL];
+	return attrString;
+}
+
+@end
