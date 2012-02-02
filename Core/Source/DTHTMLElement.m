@@ -28,7 +28,7 @@
 
 @interface DTHTMLElement ()
 
-@property (nonatomic, strong) NSMutableDictionary *fontCache;
+@property (nonatomic, strong) NSCache *fontCache;
 @property (nonatomic, strong) NSMutableArray *children;
 
 - (DTCSSListStyle *)calculatedListStyle;
@@ -61,7 +61,7 @@
 	
 	NSArray *shadows;
 	
-	NSMutableDictionary *_fontCache;
+	NSCache *_fontCache;
 	
 	NSMutableDictionary *_additionalAttributes;
 	
@@ -877,11 +877,14 @@
 
 #pragma mark Properties
 
-- (NSMutableDictionary *)fontCache
+- (NSCache *)fontCache
 {
+	static NSCache *g_fontCache;
 	if (!_fontCache)
 	{
-		_fontCache = [[NSMutableDictionary alloc] init];
+		if(!g_fontCache)
+			g_fontCache=[NSCache new];
+		_fontCache = g_fontCache;
 	}
 	
 	return _fontCache;
