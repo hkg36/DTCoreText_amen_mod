@@ -12,6 +12,7 @@
 #import "DTCSSStylesheet.h"
 #import "DTCoreTextFontDescriptor.h"
 #import "DTCoreTextParagraphStyle.h"
+#import "DTTextAttachment.h"
 
 #import "DTColor+HTML.h"
 #import "DTImage+HTML.h"
@@ -146,43 +147,7 @@
 	}
 	
 	// the combined style sheet for entire document
-	_globalStyleSheet = [[DTCSSStylesheet alloc] init]; 
-	
-	// default styles
-	[_globalStyleSheet parseStyleBlock:@"html {display: block;}"];
-	[_globalStyleSheet parseStyleBlock:@"head {display: none;}"];
-	[_globalStyleSheet parseStyleBlock:@"title {display: none;}"];
-	[_globalStyleSheet parseStyleBlock:@"style {display: none;}"];
-	
-	[_globalStyleSheet parseStyleBlock:@"body {display: block;}"]; // safari has the doc indent here 8px
-	
-	[_globalStyleSheet parseStyleBlock:@"p {display: block;-webkit-margin-before: 1em;-webkit-margin-after: 1em;-webkit-margin-start: 0px;-webkit-margin-end: 0px;}"];
-	
-	[_globalStyleSheet parseStyleBlock:@"ul, menu, dir {display: block;list-style-type: disc;-webkit-margin-before: 1em;-webkit-margin-after: 1em;-webkit-margin-start: 0px;-webkit-margin-end: 0px;-webkit-padding-start: 40px;}"];
-	[_globalStyleSheet parseStyleBlock:@"li {display:list-item;}"];
-	[_globalStyleSheet parseStyleBlock:@"ol {display: block;list-style-type: decimal;-webkit-margin-before: 1em;-webkit-margin-after: 1em;-webkit-margin-start: 0px;-webkit-margin-end: 0px;-webkit-padding-start: 40px;}"];
-	
-	[_globalStyleSheet parseStyleBlock:@"code {font-family: Courier;} pre {font-family: Courier;}"];
-	[_globalStyleSheet parseStyleBlock:@"a {color:#0000EE;text-decoration:underline;}"]; // color:-webkit-link
-	[_globalStyleSheet parseStyleBlock:@"center {text-align:center;display:block;}"];
-	[_globalStyleSheet parseStyleBlock:@"strong, b {font-weight:bolder;}"];
-	[_globalStyleSheet parseStyleBlock:@"i,em {font-style:italic;}"];
-	[_globalStyleSheet parseStyleBlock:@"u {text-decoration:underline;}"];
-	[_globalStyleSheet parseStyleBlock:@"big {font-size:bigger;}"];
-	[_globalStyleSheet parseStyleBlock:@"small {font-size:smaller;}"];
-	[_globalStyleSheet parseStyleBlock:@"sub {font-size:smaller; vertical-align:sub;}"];
-	[_globalStyleSheet parseStyleBlock:@"sup {font-size:smaller; vertical-align:super;}"];
-	[_globalStyleSheet parseStyleBlock:@"s, strike, del { text-decoration:line-through; }"];
-	[_globalStyleSheet parseStyleBlock:@"tt, code, kbd, samp { font-family: monospace; }"];
-	[_globalStyleSheet parseStyleBlock:@"pre, xmp, plaintext, listing {display: block;font-family:monospace;white-space:pre;margin-top: 1em;margin-right:0px;margin-bottom:1em;margin-left:0px;}"];
-	
-	// TODO: wire these up, note that safari uses -webkit-margin-*
-	[_globalStyleSheet parseStyleBlock:@"h1 {display:block; font-size: 2em; -webkit-margin-before: 0.67em; -webkit-margin-after: 0.67em; -webkit-margin-start: 0px; -webkit-margin-end: 0px; font-weight: bold;}"];
-	[_globalStyleSheet parseStyleBlock:@"h2 {display:block; font-size: 1.5em; -webkit-margin-before: 0.83em; -webkit-margin-after: 0.83em; -webkit-margin-start: 0px; -webkit-margin-end: 0px; font-weight: bold;}"];
-	[_globalStyleSheet parseStyleBlock:@"h3 {display:block; font-size: 1.17em; -webkit-margin-before: 1em; -webkit-margin-after: 1em; -webkit-margin-start: 0px; -webkit-margin-end: 0px; font-weight: bold;}"];
-	[_globalStyleSheet parseStyleBlock:@"h4 {display:block; -webkit-margin-before: 1.33em; -webkit-margin-after: 1.33em; -webkit-margin-start: 0px; -webkit-margin-end: 0px; font-weight: bold;}"];
-	[_globalStyleSheet parseStyleBlock:@"h5 {display:block; font-size: 0.83em; -webkit-margin-before: 1.67em; -webkit-margin-after: 1.67em; -webkit-margin-start: 0px; -webkit-margin-end: 0px; font-weight: bold;}"];
-	[_globalStyleSheet parseStyleBlock:@"h6 {display:block; font-size: 0.67em; -webkit-margin-before: 2.33em; -webkit-margin-after: 2.33em; -webkit-margin-start: 0px; -webkit-margin-end: 0px; font-weight: bold;}"];
+	_globalStyleSheet = [DTCSSStylesheet defaultStyleSheet]; 
 	
 	// do we have a default style sheet passed as option?
 	DTCSSStylesheet *defaultStylesheet = [_options objectForKey:DTDefaultStyleSheet];
@@ -415,9 +380,33 @@
 		// to avoid much too much space before the image
 		currentTag.paragraphStyle.lineHeightMultiple = 1;
 		
+		// caller gets opportunity to modify object tag before it is written
+		if (_willFlushCallback)
+		{
+			_willFlushCallback(currentTag);
+		}
+		
+		// maybe the image is forced to show as block, then we want a newline before and after
+		if (currentTag.displayStyle == DTHTMLElementDisplayStyleBlock)
+		{
+			needsNewLineBefore = YES;
+		}
+		
+		if (needsNewLineBefore)
+		{
+			if ([tmpString length] && !outputHasNewline)
+			{
+				[tmpString appendNakedString:@"\n"];
+				outputHasNewline = YES;
+			}
+			
+			needsNewLineBefore = NO;
+		}
+		
 		// add it to output
 		[tmpString appendAttributedString:[currentTag attributedString]];
 		outputHasNewline = NO;
+		currentTagIsEmpty = NO;
 	};
 	
 	[_tagStartHandlers setObject:[objectBlock copy] forKey:@"object"];
@@ -750,7 +739,7 @@
 	{
 		_currentTagContents = [[NSMutableString alloc] initWithCapacity:1000];
 	}
-	
+
 	[_currentTagContents appendString:string];
 }
 
@@ -770,7 +759,7 @@
 	
 	if (currentTag.preserveNewlines)
 	{
-		[tagContent stringByTrimmingCharactersInSet:[NSCharacterSet newlineCharacterSet]];
+		tagContents = [tagContent stringByTrimmingCharactersInSet:[NSCharacterSet newlineCharacterSet]];
 		
 		tagContents = [tagContents stringByReplacingOccurrencesOfString:@"\n" withString:UNICODE_LINE_FEED];
 	}
@@ -853,28 +842,50 @@
 {
 	void (^tmpBlock)(void) = ^
 	{
-		if (_currentTagContents)
+		DTHTMLElement *parent = currentTag;
+		DTHTMLElement *nextTag = [currentTag copy];
+		nextTag.tagName = elementName;
+		nextTag.textScale = textScale;
+		nextTag.attributes = attributeDict;
+		[parent addChild:nextTag];
+		
+		// apply style from merged style sheet
+		NSDictionary *mergedStyles = [_globalStyleSheet mergedStyleDictionaryForElement:nextTag];
+		if (mergedStyles)
 		{
-			[self _flushCurrentTagContent:_currentTagContents];
+			[nextTag applyStyleDictionary:mergedStyles];
 		}
 		
+		BOOL removeUnflushedWhitespace = NO;
+
+		// keep currentTag, might be used in flush
+		if (_currentTagContents)
+		{
+			// remove whitespace suffix in current non-block item
+			if (nextTag.displayStyle == DTHTMLElementDisplayStyleBlock)
+			{
+				if (currentTag.displayStyle != DTHTMLElementDisplayStyleBlock)
+				{
+					[_currentTagContents removeWhitespaceSuffix];
+				}
+				
+				removeUnflushedWhitespace = YES;
+			}
+		}
+
+		[self _flushCurrentTagContent:_currentTagContents];
+		
+		// avoid transfering space from parent tag
+		if (removeUnflushedWhitespace)
+		{
+			_currentTagContents = nil;
+		}
+
 		// keep track of something was flushed for this tag
 		currentTagIsEmpty = YES;
 		
-		// make new tag as copy of previous tag
-		DTHTMLElement *parent = currentTag;
-		currentTag = [currentTag copy];
-		currentTag.tagName = elementName;
-		currentTag.textScale = textScale;
-		currentTag.attributes = attributeDict;
-		[parent addChild:currentTag];
-		
-		// apply style from merged style sheet
-		NSDictionary *mergedStyles = [_globalStyleSheet mergedStyleDictionaryForElement:currentTag];
-		if (mergedStyles)
-		{
-			[currentTag applyStyleDictionary:mergedStyles];
-		}
+		// switch to new tag
+		currentTag = nextTag;
 		
 		if (currentTag.displayStyle == DTHTMLElementDisplayStyleNone)
 		{
@@ -905,19 +916,6 @@
 				currentTag.paragraphStyle.writingDirection = kCTWritingDirectionRightToLeft;
 			}
 		}
-		
-		
-//		// block items need a break before
-//		if ([tmpString length])
-//		{
-//			if (!(currentTag.displayStyle == DTHTMLElementDisplayStyleInline) && !(currentTag.displayStyle == DTHTMLElementDisplayStyleNone) && !outputHasNewline)
-//			{
-//				[tmpString appendString:@"\n"];
-//
-//				outputHasNewline = YES;
-//				needsNewLineBefore = NO;
-//			}
-//		}
 		
 		// find block to execute for this tag if any
 		void (^tagBlock)(void) = [_tagStartHandlers objectForKey:elementName];
@@ -979,6 +977,17 @@
 {
 	dispatch_group_async(_stringAssemblyGroup, _stringAssemblyQueue,^{
 		[self _handleTagContent:string];	
+	});
+}
+
+- (void)parser:(DTHTMLParser *)parser foundCDATA:(NSData *)CDATABlock
+{
+	dispatch_group_async(_stringAssemblyGroup, _stringAssemblyQueue,^{
+		if ([currentTag.tagName isEqualToString:@"style"])
+		{
+			NSString *styleBlock = [[NSString alloc] initWithData:CDATABlock encoding:NSUTF8StringEncoding];
+			[_globalStyleSheet parseStyleBlock:styleBlock];
+		}
 	});
 }
 

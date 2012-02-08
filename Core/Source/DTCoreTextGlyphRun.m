@@ -9,6 +9,7 @@
 #import "DTCoreTextGlyphRun.h"
 #import "DTCoreTextLayoutLine.h"
 #import "DTTextAttachment.h"
+#import "DTCoreTextConstants.h"
 
 #ifndef __IPHONE_4_3
 	#define __IPHONE_4_3 40300
@@ -50,9 +51,8 @@
 	DTTextAttachment *_attachment;
 	BOOL _didCheckForAttachmentInAttributes;
 	BOOL _didCalculateMetrics;
-	
-	NSRange _stringRange;
 }
+
 @synthesize runLock;
 
 - (id)initWithRun:(CTRunRef)run layoutLine:(DTCoreTextLayoutLine *)layoutLine offset:(CGFloat)offset
@@ -217,7 +217,7 @@
 	{
 		if (!_didCheckForAttachmentInAttributes)
 		{
-			_attachment = [self.attributes objectForKey:@"DTTextAttachment"];
+			_attachment = [self.attributes objectForKey:NSAttachmentAttributeName];
 			
 			_didCheckForAttachmentInAttributes = YES;
 		}

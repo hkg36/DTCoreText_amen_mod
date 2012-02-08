@@ -9,6 +9,10 @@
 #import "DTHTMLParser.h"
 #import <libxml/HTMLparser.h>
 
+#if !__has_feature(objc_arc)
+#error THIS CODE MUST BE COMPILED WITH ARC ENABLED!
+#endif
+
 @interface DTHTMLParser()
 
 @property (nonatomic, strong) NSError *parserError;
@@ -144,6 +148,15 @@ void _error(void *context, const char *msg, ...)
 	myself.parserError = [NSError errorWithDomain:@"DTHTMLParser" code:1 userInfo:userInfo];
 	
 	[myself.delegate parser:myself parseErrorOccurred:myself.parserError];
+}
+
+void _cdataBlock(void *context, const xmlChar *value, int len)
+{
+	DTHTMLParser *myself = (__bridge DTHTMLParser *)context;
+	
+	NSData *data = [NSData dataWithBytes:(const void *)value length:len];
+	
+	[myself.delegate parser:myself foundCDATA:data];
 }
 
 @implementation DTHTMLParser
@@ -326,6 +339,17 @@ void _error(void *context, const char *msg, ...)
 	{
 		_handler.error = NULL;
 	} 
+
+	if ([delegate respondsToSelector:@selector(parser:foundCDATA:)])
+	{
+		_handler.cdataBlock = _cdataBlock;
+	}
+	else
+	{
+		_handler.cdataBlock = NULL;
+	} 
+	
+	_handler.cdataBlock = _cdataBlock;
 }
 
 - (NSInteger)lineNumber
