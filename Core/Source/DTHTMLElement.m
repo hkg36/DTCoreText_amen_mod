@@ -123,7 +123,7 @@
 		[tmpDict setObject:_textAttachment forKey:NSAttachmentAttributeName];
 		
 		// remember original paragraphSpacing
-		[tmpDict setObject:[NSNumber numberWithFloat:self.paragraphStyle.paragraphSpacing] forKey:@"DTAttachmentParagraphSpacing"];
+		[tmpDict setObject:[NSNumber numberWithFloat:self.paragraphStyle.paragraphSpacing] forKey:DTAttachmentParagraphSpacingAttribute];
 		
 #ifndef DT_ADD_FONT_ON_ATTACHMENTS
 		// omit adding a font unless we need it also on attachments, e.g. for editing
@@ -161,16 +161,16 @@
 	// add hyperlink
 	if (link)
 	{
-		[tmpDict setObject:link forKey:@"DTLink"];
+		[tmpDict setObject:link forKey:DTLinkAttribute];
 		
 		// add a GUID to group multiple glyph runs belonging to same link
-		[tmpDict setObject:[NSString guid] forKey:@"DTGUID"];
+		[tmpDict setObject:[NSString guid] forKey:DTGUIDAttribute];
 	}
 	
 	// add strikout if applicable
 	if (strikeOut)
 	{
-		[tmpDict setObject:[NSNumber numberWithBool:YES] forKey:@"DTStrikeOut"];
+		[tmpDict setObject:[NSNumber numberWithBool:YES] forKey:DTStrikeOutAttribute];
 	}
 	
 	// set underline style
@@ -189,7 +189,7 @@
 	
 	if (backgroundColor)
 	{
-		[tmpDict setObject:(id)[backgroundColor CGColor] forKey:@"DTBackgroundColor"];
+		[tmpDict setObject:(id)[backgroundColor CGColor] forKey:DTBackgroundColorAttribute];
 	}
 	
 	if (superscriptStyle)
@@ -208,18 +208,23 @@
 	// add shadow array if applicable
 	if (shadows)
 	{
-		[tmpDict setObject:shadows forKey:@"DTShadows"];
+		[tmpDict setObject:shadows forKey:DTShadowsAttribute];
 	}
 	
 	// add tag for PRE so that we can omit changing this font if we override fonts
 	if (preserveNewlines)
 	{
-		[tmpDict setObject:[NSNumber numberWithBool:YES] forKey:@"DTPreserveNewlines"];
+		[tmpDict setObject:[NSNumber numberWithBool:YES] forKey:DTPreserveNewlinesAttribute];
 	}
 	
 	if (headerLevel)
 	{
-		[tmpDict setObject:[NSNumber numberWithInteger:headerLevel] forKey:@"DTHeaderLevel"];
+		[tmpDict setObject:[NSNumber numberWithInteger:headerLevel] forKey:DTHeaderLevelAttribute];
+	}
+	
+	if (_listStyle)
+	{
+		[tmpDict setObject:[NSArray arrayWithObject:_listStyle] forKey:DTTextListsAttribute];
 	}
 	
 	return tmpDict;
@@ -253,8 +258,6 @@
 				
 				NSMutableDictionary *smallAttributes = [attributes mutableCopy];
 				[smallAttributes setObject:CFBridgingRelease(smallerFont) forKey:(id)kCTFontAttributeName];
-				//CFRelease(smallerFont);
-				
 				
 				return [[NSAttributedString alloc] initWithString:text attributes:smallAttributes];
 			}
@@ -279,7 +282,6 @@
 		CTFontRef font = [fontDesc newMatchingFont];
 		
 		[attributes setObject:CFBridgingRelease(font) forKey:(id)kCTFontAttributeName];
-		//CFRelease(font);
 	}
 	
 	// text color for bullet same as text
@@ -292,11 +294,15 @@
 	{
 		CTParagraphStyleRef newParagraphStyle = [self.paragraphStyle createCTParagraphStyle];
 		[attributes setObject:CFBridgingRelease(newParagraphStyle) forKey:(id)kCTParagraphStyleAttributeName];
-		//CFRelease(newParagraphStyle);
 	}
 	
 	// get calculated list style
 	DTCSSListStyle *calculatedListStyle = [self calculatedListStyle];
+	
+	if (_listStyle)
+	{
+		[attributes setObject:[NSArray arrayWithObject:_listStyle] forKey:DTTextListsAttribute];
+	}
 	
 	NSString *prefix = [calculatedListStyle prefixWithCounter:_listCounter];
 	
@@ -582,19 +588,19 @@
 	{
 		if ([alignment isEqualToString:@"left"])
 		{
-			self.paragraphStyle.textAlignment = kCTLeftTextAlignment;
+			self.paragraphStyle.alignment = kCTLeftTextAlignment;
 		}
 		else if ([alignment isEqualToString:@"right"])
 		{
-			self.paragraphStyle.textAlignment = kCTRightTextAlignment;
+			self.paragraphStyle.alignment = kCTRightTextAlignment;
 		}
 		else if ([alignment isEqualToString:@"center"])
 		{
-			self.paragraphStyle.textAlignment = kCTCenterTextAlignment;
+			self.paragraphStyle.alignment = kCTCenterTextAlignment;
 		}
 		else if ([alignment isEqualToString:@"justify"])
 		{
-			self.paragraphStyle.textAlignment = kCTJustifiedTextAlignment;
+			self.paragraphStyle.alignment = kCTJustifiedTextAlignment;
 		}
 		else if ([alignment isEqualToString:@"inherit"])
 		{
@@ -635,6 +641,8 @@
 		if ([lineHeight isEqualToString:@"normal"])
 		{
 			self.paragraphStyle.lineHeightMultiple = 0.0; // default
+			self.paragraphStyle.minimumLineHeight = 0.0; // default
+			self.paragraphStyle.maximumLineHeight = 0.0; // default
 		}
 		else if ([lineHeight isEqualToString:@"inherit"])
 		{
@@ -642,9 +650,9 @@
 		}
 		else if ([lineHeight isNumeric])
 		{
-			self.paragraphStyle.lineHeightMultiple = [lineHeight floatValue];
-			//            self.paragraphStyle.minimumLineHeight = fontDescriptor.pointSize * (CGFloat)[lineHeight intValue];
-			//            self.paragraphStyle.maximumLineHeight = self.paragraphStyle.minimumLineHeight;
+			//self.paragraphStyle.lineHeightMultiple = [lineHeight floatValue];
+			self.paragraphStyle.minimumLineHeight = fontDescriptor.pointSize * (CGFloat)[lineHeight intValue];
+			self.paragraphStyle.maximumLineHeight = self.paragraphStyle.minimumLineHeight;
 		}
 		else // interpret as length
 		{
