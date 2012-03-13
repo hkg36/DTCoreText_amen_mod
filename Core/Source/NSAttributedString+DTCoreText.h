@@ -7,6 +7,7 @@
 //
 
 @class DTCSSListStyle;
+@class DTTextBlock;
 
 /**
  Convenience Methods that mimick similar methods available on Mac
@@ -56,6 +57,15 @@
 
 
 /**
+ Returns the range of the given text block that contains the given location.
+ 
+ @param list The text block.
+ @param location The location in the text.
+ @returns The range of the given text block containing the location.
+ */
+- (NSRange)rangeOfTextBlock:(DTTextBlock *)textBlock atIndex:(NSUInteger)location;
+
+/**
  @name Converting to Other Representations
  */
 
@@ -76,5 +86,23 @@
  @returns The receiver converted to plain text.
  */
 - (NSString *)plainTextString;
+
+
+/**
+ @name Creating Special Attributed Strings
+ */
+
+
+/**
+ Create a prefix for a paragraph in a list
+ 
+ @param listCounter The value for the list item.
+ @param listStyle The list style
+ @param attributes The attribute dictionary for the text to be prefixed
+ @returns An attributed string with the list prefix
+ */
++ (NSAttributedString *)prefixForListItemWithCounter:(NSUInteger)listCounter listStyle:(DTCSSListStyle *)listStyle attributes:(NSDictionary *)attributes;
+
+
 
 @end

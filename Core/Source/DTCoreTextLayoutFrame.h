@@ -10,10 +10,13 @@
 #import <CoreText/CoreText.h>
 
 @class DTCoreTextLayoutLine;
+@class DTTextBlock;
 
 
 // the value to use if the height is unknown
 #define CGFLOAT_OPEN_HEIGHT 16777215.0f
+
+typedef void (^DTCoreTextLayoutFrameTextBlockHandler)(DTTextBlock *textBlock, CGRect frame, CGContextRef context, BOOL *shouldDrawDefaultBackground); 
 
 
 @class DTCoreTextLayouter;
@@ -105,6 +108,14 @@
 
 
 /**
+ Set a custom handler to be executed before text belonging to a text block is drawn.
+ 
+ @param handler A DTCoreTextLayoutFrameTextBlockHandler block.
+*/
+@property (nonatomic, copy) DTCoreTextLayoutFrameTextBlockHandler textBlockHandler;
+
+
+/**
  @name Working with Glyphs
  */
 
@@ -163,6 +174,26 @@
  @returns The layout line that this index belongs to
  */
 - (DTCoreTextLayoutLine *)lineContainingIndex:(NSUInteger)index;
+
+
+/**
+ Determins if the given line is the last in a paragraph.
+ 
+ This is needed for example to determine whether paragraph spacing needs to be applied after it.
+ @param line The Line
+ @returns `YES` if the given line is the last in a paragraph
+ */
+- (BOOL)isLineLastInParagraph:(DTCoreTextLayoutLine *)line;
+
+
+/**
+ Finds the appropriate baseline origin for a line to position it at the correct distance from a previous line.
+ 
+ @param line The line
+ @param previousLine The line after which to position the line.
+ @returns The correct baseline origin for the line.
+ */
+- (CGPoint)baselineOriginToPositionLine:(DTCoreTextLayoutLine *)line afterLine:(DTCoreTextLayoutLine *)previousLine;
 
 
 /**

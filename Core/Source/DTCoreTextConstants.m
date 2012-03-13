@@ -34,3 +34,5 @@ NSString *DTStrikeOutAttribute = @"DTStrikeOut";
 NSString *DTBackgroundColorAttribute = @"DTBackgroundColor";
 NSString *DTShadowsAttribute = @"DTShadows";
 NSString *DTHorizontalRuleStyleAttribute = @"DTHorizontalRuleStyle";
+NSString *DTTextBlocksAttribute = @"DTTextBlocks";
+NSString *DTFieldAttribute = @"DTField";

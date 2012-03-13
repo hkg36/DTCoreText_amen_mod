@@ -5,7 +5,9 @@ This project aims to duplicate the methods present on Mac OSX which allow creati
 
 Please support us so that we can continue to make DTCoreText even more awesome!
 
-<a href='http://www.pledgie.com/campaigns/16615'><img alt='Click here to lend your support to: Migrate DTCoreText to libxml2 and make a donation at www.pledgie.com !' src='http://www.pledgie.com/campaigns/16615.png?skin_name=chrome' border='0' /></a>
+<a href="https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=M5DZ3PAN7NW8J">
+<img src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" alt="PayPal - The safer, easier way to pay online!" />
+</a>
 
 The project covers two broad areas:
 
@@ -59,19 +61,24 @@ The best way to use DTCoreText with Xcode 4.2 is to add it in Xcode as a subproj
 
 5. Go to File: Project Settings… and change the derived data location to project-relative.
 6. Add the DerivedData folder to your git ignore. 
-6. In your application's target Build Settings set the "User Header Search Paths" to the directory containing your project with recrusive set to YES. Set the Header Search Paths to `/usr/include/libxml2`. Set "Always Search User Paths" to YES.
+7. In your application's target Build Settings:
+	- Set the "User Header Search Paths" to the directory containing your project with recrusive set to YES.
+   - Set the Header Search Paths to /usr/include/libxml2.
+	- Set "Always Search User Paths" to YES.
+	- Set the "Other Linker Flags" below
 
 If you do not want to deal with Git submodules simply add DTCoreText to your project's git ignore file and pull updates to DTCoreText as its own independent Git repository. Otherwise you are free to add DTCoreText as a submodule.
 
-*You also have these other installation options instead:*
+LINKER SETTINGS:
 
-- Copy all classes and headers from the Core/Source folder to your project.
-- Link your project against the libDTCoreText static library. Note that the "Static Library" target does not produce a universal library. You will also need to add all header files contained in the Core/Source folder to your project.
+   - add the -ObjC and -all_load to your app target's "Other Linker Flags". This is needed whenever you link in any static library that contains Objective-C classes and categories.
+   - If your app does not use ARC yet (but DTCoreText does) then you also need the -fobjc-arc linker flag.
+
+*Other Options (only mentioned for completeness)*
+
+- Copy all classes and headers from the Core/Source folder to your project. Note for this you need to also generate and include the xxd'ed version of default.css.
+- Link your project against the libDTCoreText static library that you previously compiled. Note that the "Static Library" target does not produce a universal library. You will also need to add all header files contained in the Core/Source folder to your project.
 - Link your project against the universal static library produced from the "Static Framework". 
-
-When linking you need` to add the -ObjC and -all_load to your app target's "Other Linker Flags". If your app does not use ARC yet (but DTCoreText does) then you also need the -fobjc-arc linker flag.
-
-The project has been changed to use libxml2 for parsing HTML, so you need to link in the libxml2.dylib, and, if you're copying all files from Core/Source, you must add the path "/usr/include/libxml2" to your header search paths as well.
 
 Known Issues
 ------------

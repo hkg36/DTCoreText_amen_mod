@@ -6,19 +6,14 @@
 //  Copyright (c) 2012 Drobnik.com. All rights reserved.
 //
 
+#import "DTCoreText.h"
 #import "NSAttributedString+DTCoreText.h"
 
-#import "DTCoreTextConstants.h"
-
-#import "DTColor+HTML.h"
-#import "NSString+HTML.h"
-#import "DTTextAttachment.h"
-#import "DTCoreTextParagraphStyle.h"
-#import "DTCoreTextFontDescriptor.h"
-#import "DTCSSListStyle.h"
-
+// use smaller list indent on iPhone OS
 #if TARGET_OS_IPHONE
-#import "NSAttributedString+HTML.h"
+#define SPECIAL_LIST_INDENT		27.0f
+#else
+#define SPECIAL_LIST_INDENT		36.0f
 #endif
 
 @implementation NSAttributedString (DTCoreText)
@@ -96,12 +91,9 @@
 	
 	NSMutableDictionary *countersPerList = [NSMutableDictionary dictionary];
 	
-	
+	// enumerating through the paragraphs in the plain text string
     [string enumerateSubstringsInRange:range options:NSStringEnumerationByParagraphs usingBlock:^(NSString *substring, NSRange substringRange, NSRange enclosingRange, BOOL *stop)
      {
-		 NSRange actualRange = substringRange;
-		 actualRange.location += totalRange.location;
-		 
 		 NSRange paragraphListRange;
 		 NSArray *textLists = [self attribute:DTTextListsAttribute atIndex:substringRange.location + totalRange.location effectiveRange:&paragraphListRange];
 		 
@@ -124,6 +116,10 @@
 		 currentCounterNum = [NSNumber numberWithInteger:currentCounter];
 		 [countersPerList setObject:currentCounterNum forKey:key];
 		 
+		 // calculate the actual range
+		 NSRange actualRange = enclosingRange;  // includes a potential \n
+		 actualRange.location += totalRange.location;
+
 		 if (NSLocationInRange(location, actualRange))
 		 {
 			 *stop = YES;
@@ -137,11 +133,12 @@
 	return [currentCounterNum integerValue];
 }
 
-- (NSRange)rangeOfTextList:(DTCSSListStyle *)list atIndex:(NSUInteger)location
+
+- (NSRange)_rangeOfObject:(id)object inArrayBehindAttribute:(NSString *)attribute atIndex:(NSUInteger)location
 {
 	NSInteger searchIndex = location;
 	
-	NSArray *textListsAtIndex;
+	NSArray *arrayAtIndex;
 	NSInteger minFoundIndex = NSIntegerMax;
 	NSInteger maxFoundIndex = 0;
 	
@@ -150,9 +147,9 @@
 	do 
 	{
 		NSRange effectiveRange;
-		textListsAtIndex = [self attribute:DTTextListsAttribute atIndex:searchIndex effectiveRange:&effectiveRange];
+		arrayAtIndex = [self attribute:attribute atIndex:searchIndex effectiveRange:&effectiveRange];
 		
-		if([textListsAtIndex containsObject:list])
+		if([arrayAtIndex containsObject:object])
 		{
 			foundList = YES;
 			
@@ -185,9 +182,9 @@
 	while (searchIndex < [self length])
 	{
 		NSRange effectiveRange;
-		textListsAtIndex = [self attribute:DTTextListsAttribute atIndex:searchIndex effectiveRange:&effectiveRange];
+		arrayAtIndex = [self attribute:attribute atIndex:searchIndex effectiveRange:&effectiveRange];
 		
-		foundList = [textListsAtIndex containsObject:list];
+		foundList = [arrayAtIndex containsObject:object];
 		
 		if (!foundList)
 		{
@@ -201,6 +198,16 @@
 	}
 	
 	return NSMakeRange(minFoundIndex, maxFoundIndex-minFoundIndex);
+}
+
+- (NSRange)rangeOfTextList:(DTCSSListStyle *)list atIndex:(NSUInteger)location
+{
+	return [self _rangeOfObject:list inArrayBehindAttribute:DTTextListsAttribute atIndex:location];
+}
+
+- (NSRange)rangeOfTextBlock:(DTTextBlock *)textBlock atIndex:(NSUInteger)location
+{
+	return [self _rangeOfObject:textBlock inArrayBehindAttribute:DTTextBlocksAttribute atIndex:location];
 }
 
 #pragma mark HTML Encoding
@@ -740,6 +747,130 @@
 	NSString *tmpString = [self string];
 	
 	return [tmpString stringByReplacingOccurrencesOfString:UNICODE_OBJECT_PLACEHOLDER withString:@""];
+}
+
+#pragma Generating Special Attributed Strings
++ (NSAttributedString *)prefixForListItemWithCounter:(NSUInteger)listCounter listStyle:(DTCSSListStyle *)listStyle attributes:(NSDictionary *)attributes
+{
+	// get existing values from attributes
+	CTParagraphStyleRef paraStyle = (__bridge CTParagraphStyleRef)[attributes objectForKey:(id)kCTParagraphStyleAttributeName];
+	CTFontRef font = (__bridge CTFontRef)[attributes objectForKey:(id)kCTFontAttributeName];
+	CGColorRef textColor = (__bridge CGColorRef)[attributes objectForKey:(id)kCTForegroundColorAttributeName];
+	
+	DTCoreTextFontDescriptor *fontDescriptor = nil;
+	DTCoreTextParagraphStyle *paragraphStyle = nil;
+	
+	if (paraStyle)
+	{
+		paragraphStyle = [DTCoreTextParagraphStyle paragraphStyleWithCTParagraphStyle:paraStyle];
+		
+		paragraphStyle.tabStops = nil;
+		
+		paragraphStyle.headIndent = SPECIAL_LIST_INDENT;
+		paragraphStyle.paragraphSpacing = 0;
+		
+		// first tab is to right-align bullet, numbering against
+		CGFloat tabOffset = paragraphStyle.headIndent - 5.0f*1.0; // TODO: change with font size
+		[paragraphStyle addTabStopAtPosition:tabOffset alignment:kCTRightTextAlignment];
+		
+		// second tab is for the beginning of first line after bullet
+		[paragraphStyle addTabStopAtPosition:paragraphStyle.headIndent alignment:	kCTLeftTextAlignment];	
+	}
+	
+	if (font)
+	{
+		fontDescriptor = [DTCoreTextFontDescriptor fontDescriptorForCTFont:font];
+	}
+	
+	NSMutableDictionary *newAttributes = [NSMutableDictionary dictionary];
+	
+	if (fontDescriptor)
+	{
+		// make a font without italic or bold
+		DTCoreTextFontDescriptor *fontDesc = [fontDescriptor copy];
+		
+		fontDesc.boldTrait = NO;
+		fontDesc.italicTrait = NO;
+		
+		CTFontRef font = [fontDesc newMatchingFont];
+		
+		[newAttributes setObject:CFBridgingRelease(font) forKey:(id)kCTFontAttributeName];
+	}
+	
+	// text color for bullet same as text
+	if (textColor)
+	{
+		[newAttributes setObject:(__bridge id)textColor forKey:(id)kCTForegroundColorAttributeName];
+	}
+	
+	// add paragraph style (this has the tabs)
+	if (paragraphStyle)
+	{
+		CTParagraphStyleRef newParagraphStyle = [paragraphStyle createCTParagraphStyle];
+		[newAttributes setObject:CFBridgingRelease(newParagraphStyle) forKey:(id)kCTParagraphStyleAttributeName];
+	}
+	
+	if (listStyle)
+	{
+		[newAttributes setObject:[NSArray arrayWithObject:listStyle] forKey:DTTextListsAttribute];
+	}
+	
+	// add a marker so that we know that this is a field/prefix
+	[newAttributes setObject:@"{listprefix}" forKey:DTFieldAttribute];
+	
+	NSString *prefix = [listStyle prefixWithCounter:listCounter];
+	
+	if (prefix)
+	{
+		DTImage *image = nil;
+		
+		if (listStyle.imageName)
+		{
+			image = [DTImage imageNamed:listStyle.imageName];
+			
+			if (!image)
+			{
+				// image invalid
+				listStyle.imageName = nil;
+				
+				prefix = [listStyle prefixWithCounter:listCounter];
+			}
+		}
+		
+		NSMutableAttributedString *tmpStr = [[NSMutableAttributedString alloc] initWithString:prefix attributes:newAttributes];
+		
+		
+		if (image)
+		{
+			// make an attachment for the image
+			DTTextAttachment *attachment = [[DTTextAttachment alloc] init];
+			attachment.contents = image;
+			attachment.contentType = DTTextAttachmentTypeImage;
+			attachment.displaySize = image.size;
+			
+#if TARGET_OS_IPHONE
+			// need run delegate for sizing
+			CTRunDelegateRef embeddedObjectRunDelegate = createEmbeddedObjectRunDelegate(attachment);
+			[newAttributes setObject:CFBridgingRelease(embeddedObjectRunDelegate) forKey:(id)kCTRunDelegateAttributeName];
+#endif
+			
+			// add attachment
+			[newAttributes setObject:attachment forKey:NSAttachmentAttributeName];				
+			
+			if (listStyle.position == DTCSSListStylePositionInside)
+			{
+				[tmpStr setAttributes:newAttributes range:NSMakeRange(2, 1)];
+			}
+			else
+			{
+				[tmpStr setAttributes:newAttributes range:NSMakeRange(1, 1)];
+			}
+		}
+		
+		return tmpStr;
+	}
+	
+	return nil;
 }
 
 @end

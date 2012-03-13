@@ -6,25 +6,8 @@
 //  Copyright 2011 Drobnik.com. All rights reserved.
 //
 
+#import "DTCoreText.h"
 #import "DTHTMLElement.h"
-#import "DTCoreTextParagraphStyle.h"
-#import "DTCoreTextFontDescriptor.h"
-#import "NSString+HTML.h"
-#import "DTColor+HTML.h"
-#import "NSCharacterSet+HTML.h"
-#import "DTTextAttachment.h"
-#import "NSAttributedString+HTML.h"
-#import "NSMutableAttributedString+HTML.h"
-
-#import "DTCSSListStyle.h"
-
-#import "DTCoreTextConstants.h"
-#import "DTImage+HTML.h"
-#import "DTColor+HTML.h"
-
-#if TARGET_OS_IPHONE
-#import "NSAttributedStringRunDelegates.h"
-#endif
 
 @interface DTHTMLElement ()
 
@@ -222,7 +205,11 @@
 	{
 		[tmpDict setObject:paragraphStyle.textLists forKey:DTTextListsAttribute];
 	}
-	
+
+	if (paragraphStyle.textBlocks)
+	{
+		[tmpDict setObject:paragraphStyle.textBlocks forKey:DTTextBlocksAttribute];
+	}
 	return tmpDict;
 }
 
@@ -262,99 +249,6 @@
 		}
 	}
 }
-
-- (NSAttributedString *)prefixForListItemWithCounter:(NSUInteger)listCounter
-{
-	NSMutableDictionary *attributes = [NSMutableDictionary dictionary];
-	
-	if (fontDescriptor)
-	{
-		// make a font without italic or bold
-		DTCoreTextFontDescriptor *fontDesc = [self.fontDescriptor copy];
-		
-		fontDesc.boldTrait = NO;
-		fontDesc.italicTrait = NO;
-		
-		CTFontRef font = [fontDesc newMatchingFont];
-		
-		[attributes setObject:CFBridgingRelease(font) forKey:(id)kCTFontAttributeName];
-	}
-	
-	// text color for bullet same as text
-	if (_textColor)
-	{
-		[attributes setObject:(id)[_textColor CGColor] forKey:(id)kCTForegroundColorAttributeName];
-	}
-	// add paragraph style (this has the tabs)
-	if (paragraphStyle)
-	{
-		CTParagraphStyleRef newParagraphStyle = [self.paragraphStyle createCTParagraphStyle];
-		[attributes setObject:CFBridgingRelease(newParagraphStyle) forKey:(id)kCTParagraphStyleAttributeName];
-	}
-	
-	// get calculated list style
-	DTCSSListStyle *calculatedListStyle = [self.paragraphStyle.textLists lastObject];// [self calculatedListStyle];
-	
-	if (calculatedListStyle)
-	{
-		[attributes setObject:self.paragraphStyle.textLists forKey:DTTextListsAttribute];
-	}
-	
-	NSString *prefix = [calculatedListStyle prefixWithCounter:listCounter];
-	
-	if (prefix)
-	{
-		DTImage *image = nil;
-		
-		if (calculatedListStyle.imageName)
-		{
-			image = [DTImage imageNamed:calculatedListStyle.imageName];
-			
-			if (!image)
-			{
-				// image invalid
-				calculatedListStyle.imageName = nil;
-				
-				prefix = [calculatedListStyle prefixWithCounter:listCounter];
-			}
-		}
-		
-		NSMutableAttributedString *tmpStr = [[NSMutableAttributedString alloc] initWithString:prefix attributes:attributes];
-		
-		
-		if (image)
-		{
-			// make an attachment for the image
-			DTTextAttachment *attachment = [[DTTextAttachment alloc] init];
-			attachment.contents = image;
-			attachment.contentType = DTTextAttachmentTypeImage;
-			attachment.displaySize = image.size;
-			
-#if TARGET_OS_IPHONE
-			// need run delegate for sizing
-			CTRunDelegateRef embeddedObjectRunDelegate = createEmbeddedObjectRunDelegate(attachment);
-			[attributes setObject:CFBridgingRelease(embeddedObjectRunDelegate) forKey:(id)kCTRunDelegateAttributeName];
-#endif
-			
-			// add attachment
-			[attributes setObject:attachment forKey:NSAttachmentAttributeName];				
-			
-			if (calculatedListStyle.position == DTCSSListStylePositionInside)
-			{
-				[tmpStr setAttributes:attributes range:NSMakeRange(2, 1)];
-			}
-			else
-			{
-				[tmpStr setAttributes:attributes range:NSMakeRange(1, 1)];
-			}
-		}
-		
-		return tmpStr;
-	}
-	
-	return nil;
-}
-
 
 - (void)applyStyleDictionary:(NSDictionary *)styles
 {
@@ -762,6 +656,98 @@
 			_textAttachmentAlignment = DTTextAttachmentVerticalAlignmentBaseline;
 		}
 	}
+	
+	if (_displayStyle == DTHTMLElementDisplayStyleBlock)
+	{
+		NSString *paddingString = [styles objectForKey:@"padding"];
+		
+		BOOL needsTextBlock = (backgroundColor!=nil);
+		
+		DTEdgeInsets padding = {0,0,0,0};
+		
+		if (paddingString)
+		{
+			// maybe it's using the short style
+			NSArray *parts = [paddingString componentsSeparatedByString:@" "];
+			
+			if ([parts count] == 4)
+			{
+				padding.top = [[parts objectAtIndex:0] pixelSizeOfCSSMeasureRelativeToCurrentTextSize:self.fontDescriptor.pointSize];
+				padding.right = [[parts objectAtIndex:1] pixelSizeOfCSSMeasureRelativeToCurrentTextSize:self.fontDescriptor.pointSize];
+				padding.bottom = [[parts objectAtIndex:2] pixelSizeOfCSSMeasureRelativeToCurrentTextSize:self.fontDescriptor.pointSize];
+				padding.left = [[parts objectAtIndex:3] pixelSizeOfCSSMeasureRelativeToCurrentTextSize:self.fontDescriptor.pointSize];
+			}
+			else if ([parts count] == 3)
+			{
+				padding.top = [[parts objectAtIndex:0] pixelSizeOfCSSMeasureRelativeToCurrentTextSize:self.fontDescriptor.pointSize];
+				padding.right = [[parts objectAtIndex:1] pixelSizeOfCSSMeasureRelativeToCurrentTextSize:self.fontDescriptor.pointSize];
+				padding.bottom = [[parts objectAtIndex:2] pixelSizeOfCSSMeasureRelativeToCurrentTextSize:self.fontDescriptor.pointSize];
+				padding.left = padding.right;
+			}
+			else if ([parts count] == 2)
+			{
+				padding.top = [[parts objectAtIndex:0] pixelSizeOfCSSMeasureRelativeToCurrentTextSize:self.fontDescriptor.pointSize];
+				padding.right = [[parts objectAtIndex:1] pixelSizeOfCSSMeasureRelativeToCurrentTextSize:self.fontDescriptor.pointSize];
+				padding.bottom = padding.top;
+				padding.left = padding.right;
+			}
+			else 
+			{
+				CGFloat paddingAmount = [paddingString pixelSizeOfCSSMeasureRelativeToCurrentTextSize:self.fontDescriptor.pointSize];
+				padding = DTEdgeInsetsMake(paddingAmount, paddingAmount, paddingAmount, paddingAmount);
+			}
+			
+			needsTextBlock = YES;
+		}
+		else
+		{
+			paddingString = [styles objectForKey:@"padding-left"];
+			
+			if (paddingString)
+			{
+				padding.left = [paddingString pixelSizeOfCSSMeasureRelativeToCurrentTextSize:self.fontDescriptor.pointSize];
+				needsTextBlock = YES;
+			}
+
+			paddingString = [styles objectForKey:@"padding-top"];
+			
+			if (paddingString)
+			{
+				padding.top = [paddingString pixelSizeOfCSSMeasureRelativeToCurrentTextSize:self.fontDescriptor.pointSize];
+				needsTextBlock = YES;
+			}
+
+			paddingString = [styles objectForKey:@"padding-right"];
+			
+			if (paddingString)
+			{
+				padding.right = [paddingString pixelSizeOfCSSMeasureRelativeToCurrentTextSize:self.fontDescriptor.pointSize];
+				needsTextBlock = YES;
+			}
+
+			paddingString = [styles objectForKey:@"padding-bottom"];
+			
+			if (paddingString)
+			{
+				padding.bottom = [paddingString pixelSizeOfCSSMeasureRelativeToCurrentTextSize:self.fontDescriptor.pointSize];
+				needsTextBlock = YES;
+			}
+		}
+		
+		if (needsTextBlock)
+		{
+			// need a block
+			DTTextBlock *newBlock = [[DTTextBlock alloc] init];
+			
+			newBlock.padding = padding;
+			
+			// transfer background color to block
+			newBlock.backgroundColor = backgroundColor;
+			backgroundColor = nil;
+			
+			self.paragraphStyle.textBlocks = [NSArray arrayWithObject:newBlock];
+		}
+	}
 }
 
 - (NSDictionary *)styles
@@ -1016,15 +1002,12 @@
 @synthesize preserveNewlines;
 @synthesize displayStyle = _displayStyle;
 @synthesize fontVariant;
-//@synthesize listStyle = _listStyle;
 @synthesize textScale;
 @synthesize size;
 
 @synthesize fontCache = _fontCache;
 @synthesize children = _children;
 @synthesize attributes = _attributes;
-
-
 
 @end
 
