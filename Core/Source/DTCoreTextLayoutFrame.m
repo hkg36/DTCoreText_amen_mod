@@ -146,6 +146,7 @@ static BOOL _DTCoreTextLayoutFramesShouldDrawDebugFrames = NO;
 	typedef struct
 	{
 		CGFloat paragraphSpacing;
+		CGFloat lineHeightMultiplier;
 	} paragraphMetrics;
 	
 	paragraphMetrics currentParaMetrics = {0};
@@ -229,6 +230,8 @@ static BOOL _DTCoreTextLayoutFramesShouldDrawDebugFrames = NO;
 		CGFloat minLineHeight = 0;
 		CGFloat maxLineHeight = 0;
 		
+		BOOL usesSyntheticLeading = NO;
+		
 		if (currentLineMetrics.leading == 0.0f)
 		{
 			// font has no leading, so we fake one (e.g. Helvetica)
@@ -240,6 +243,8 @@ static BOOL _DTCoreTextLayoutFramesShouldDrawDebugFrames = NO;
 				// we have a large image increasing the ascender too much for this calc to work
 				currentLineMetrics.leading = 0;
 			}
+			
+			usesSyntheticLeading = YES;
 		}
 		else
 		{
@@ -255,27 +260,23 @@ static BOOL _DTCoreTextLayoutFramesShouldDrawDebugFrames = NO;
 			}
 		}
 		
-		if (CTParagraphStyleGetValueForSpecifier(paragraphStyle, kCTParagraphStyleSpecifierMaximumLineHeight, sizeof(maxLineHeight), &maxLineHeight))
-		{
-			if (maxLineHeight>0 && lineHeight>maxLineHeight)
-			{
-				lineHeight = maxLineHeight;
-			}
-		}
-		
 		// get the correct baseline origin
 		if (previousLine)
 		{
 			if (lineHeight==0)
 			{
-				lineHeight = previousLineMetrics.descent + currentLineMetrics.ascent + currentLineMetrics.leading;
+				lineHeight = currentLineMetrics.descent + currentLineMetrics.ascent;
 			}
 			
 			if (isAtBeginOfParagraph)
 			{
-				lineHeight += previousParaMetrics.paragraphSpacing;
+				lineOrigin.y += previousParaMetrics.paragraphSpacing;
 			}
 			
+			if (usesSyntheticLeading)
+			{
+				lineHeight += currentLineMetrics.leading;
+			}
 		}
 		else 
 		{
@@ -292,6 +293,25 @@ static BOOL _DTCoreTextLayoutFramesShouldDrawDebugFrames = NO;
 			else 
 			{
 				lineHeight = currentLineMetrics.ascent + currentLineMetrics.leading - currentLineMetrics.descent/2.0f;
+			}
+			
+			// leading is included in the lineHeight
+			lineHeight += currentLineMetrics.leading;
+		}
+		
+		if (CTParagraphStyleGetValueForSpecifier(paragraphStyle, kCTParagraphStyleSpecifierLineHeightMultiple, sizeof(currentParaMetrics.lineHeightMultiplier), &currentParaMetrics.lineHeightMultiplier))
+		{
+			if (currentParaMetrics.lineHeightMultiplier>0.0f)
+			{
+				lineHeight *= currentParaMetrics.lineHeightMultiplier;
+			}
+		}
+		
+		if (CTParagraphStyleGetValueForSpecifier(paragraphStyle, kCTParagraphStyleSpecifierMaximumLineHeight, sizeof(maxLineHeight), &maxLineHeight))
+		{
+			if (maxLineHeight>0 && lineHeight>maxLineHeight)
+			{
+				lineHeight = maxLineHeight;
 			}
 		}
 		
@@ -774,6 +794,14 @@ static BOOL _DTCoreTextLayoutFramesShouldDrawDebugFrames = NO;
 				nrect.size.height = oneRun.frame.size.height;
 				nrect.origin.y = roundf(nrect.origin.y + oneRun.frame.size.height/2.0f)+0.5f;
 				
+				DTTextBlock *textBlock = [[oneRun.attributes objectForKey:DTTextBlocksAttribute] lastObject];
+				
+				if (textBlock)
+				{
+					// apply horizontal padding
+					nrect.size.width = _frame.size.width - textBlock.padding.left - textBlock.padding.right;
+				}
+				
 				CGContextMoveToPoint(context, nrect.origin.x, nrect.origin.y);
 				CGContextAddLineToPoint(context, nrect.origin.x + nrect.size.width, nrect.origin.y);
 				
@@ -1179,18 +1207,10 @@ static BOOL _DTCoreTextLayoutFramesShouldDrawDebugFrames = NO;
 		}
 	}
 	
-	if (CTParagraphStyleGetValueForSpecifier(lineParagraphStyle, kCTParagraphStyleSpecifierMaximumLineHeight, sizeof(maxLineHeight), &maxLineHeight))
-	{
-		if (maxLineHeight>0 && lineHeight>maxLineHeight)
-		{
-			lineHeight = maxLineHeight;
-		}
-	}
-	
 	// is absolute line height set?
 	if (lineHeight==0)
 	{
-		lineHeight = previousLine.descent + line.ascent + usedLeading;
+		lineHeight = line.descent + line.ascent + usedLeading;
 	}
 	
 	if ([self isLineLastInParagraph:previousLine])
@@ -1207,6 +1227,24 @@ static BOOL _DTCoreTextLayoutFramesShouldDrawDebugFrames = NO;
 			lineHeight += paraSpacing;
 		}
 		
+	}
+	
+	CGFloat lineHeightMultiplier = 0;
+	
+	if (CTParagraphStyleGetValueForSpecifier(lineParagraphStyle, kCTParagraphStyleSpecifierLineHeightMultiple, sizeof(lineHeightMultiplier), &lineHeightMultiplier))
+	{
+		if (lineHeightMultiplier>0.0f)
+		{
+			lineHeight *= lineHeightMultiplier;
+		}
+	}
+	
+	if (CTParagraphStyleGetValueForSpecifier(lineParagraphStyle, kCTParagraphStyleSpecifierMaximumLineHeight, sizeof(maxLineHeight), &maxLineHeight))
+	{
+		if (maxLineHeight>0 && lineHeight>maxLineHeight)
+		{
+			lineHeight = maxLineHeight;
+		}
 	}
 	
 	lineOrigin.y += lineHeight;
