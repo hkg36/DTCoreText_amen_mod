@@ -352,18 +352,22 @@
 	NSInteger location = 0;
 	
 	NSArray *previousListStyles = nil;
-	
-	for (NSString *oneParagraph in paragraphs)
+
+	for (int i=0; i<[paragraphs count]; i++)
 	{
+		NSString *oneParagraph = [paragraphs objectAtIndex:i];
 		NSRange paragraphRange = NSMakeRange(location, [oneParagraph length]);
 		
-		BOOL needsToRemovePrefix = NO;
-		
-		// skip empty paragraph at end
-		if (oneParagraph == [paragraphs lastObject] && !paragraphRange.length)
+		// skip empty paragraph at the end
+		if (i==[paragraphs count]-1)
 		{
-			continue;
+			if (!paragraphRange.length)
+			{
+				continue;
+			}
 		}
+		
+		BOOL needsToRemovePrefix = NO;
 		
 		BOOL fontIsBlockLevel = NO;
 		
